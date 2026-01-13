@@ -134,6 +134,11 @@ class Block(nn.Module):
 
 class GPT(nn.Module):
     def __init__(self, config, pad_vocab_size_to=64):
+        # Configs: see scripts/base_train.py:122
+        # vocab_size = 65,536
+        # n_layer = 20
+        # n_embd = 20 * 64 = 1,280
+        # n_head = 8
         super().__init__()
         self.config = config
         # For DDP, we want vocab_size divisible by world_size. Also, there are potential performance benefits, see:
@@ -142,7 +147,7 @@ class GPT(nn.Module):
         if padded_vocab_size != config.vocab_size:
             print0(f"Padding vocab_size from {config.vocab_size} to {padded_vocab_size} to be divisible by {pad_vocab_size_to}")
         self.transformer = nn.ModuleDict({
-            "wte": nn.Embedding(padded_vocab_size, config.n_embd),
+            "wte": nn.Embedding(padded_vocab_size, config.n_embd),  # word token embedding
             "h": nn.ModuleList([Block(config, layer_idx) for layer_idx in range(config.n_layer)]),
         })
         self.lm_head = nn.Linear(config.n_embd, padded_vocab_size, bias=False)
