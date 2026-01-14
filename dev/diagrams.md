@@ -121,9 +121,9 @@ flowchart TB
             
             rope["RoPE<br/>Rotary Position Embedding"]
             qk_norm["QK Norm (RMSNorm)"]
-            transpose1["Transpose<br/>(B, H, T, D)"]
+            transpose1["Transpose<br/>(B, H, D, T) → (B, H, T, D)"]
             sdpa["Scaled Dot-Product Attention<br/>causal=True, GQA enabled<br/>K,V broadcast 4→16 heads"]
-            transpose2["Transpose + Reshape<br/>(B, T, 1024)"]
+            transpose2["Transpose + Reshape<br/>(B, H, T, D) → (B, T, 1024)"]
             c_proj_attn["c_proj: Linear<br/>1024 → 1024"]
         end
         

@@ -103,6 +103,7 @@ class CausalSelfAttention(nn.Module):
 
         # Re-assemble the heads side by side and project back to residual stream
         y = y.transpose(1, 2).contiguous().view(B, T, -1)
+        # Mix information from all heads
         y = self.c_proj(y)
         return y
 
@@ -139,6 +140,8 @@ class GPT(nn.Module):
         # n_layer = 20
         # n_embd = 20 * 64 = 1,280
         # n_head = 8
+        # n_kv_head = 8 (GQA is off)
+        # head_dim = 160
         super().__init__()
         self.config = config
         # For DDP, we want vocab_size divisible by world_size. Also, there are potential performance benefits, see:
@@ -281,6 +284,7 @@ class GPT(nn.Module):
         logits = self.lm_head(x) # (B, T, padded_vocab_size) <- very big tensor, large amount of memory
         logits = logits[..., :self.config.vocab_size] # slice to remove padding
         logits = logits.float() # switch to fp32 for logit softcap and loss computation
+        # Provides stability during training. Smoother than hard clamp.
         logits = softcap * torch.tanh(logits / softcap) # squash the logits
 
         if targets is not None:
