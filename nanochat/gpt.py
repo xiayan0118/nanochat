@@ -108,6 +108,19 @@ class CausalSelfAttention(nn.Module):
         return y
 
 
+class MLP_SwiGLU(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        hidden = 4 * config.n_embd
+        self.w_gate = nn.Linear(config.n_embd, hidden, bias=False)  # gate projection
+        self.w_up = nn.Linear(config.n_embd, hidden, bias=False)    # up projection
+        self.w_down = nn.Linear(hidden, config.n_embd, bias=False)  # down projection
+
+    def forward(self, x):
+        gate = F.silu(self.w_gate(x))  # Swish activation on gate
+        up = self.w_up(x)              # linear projection
+        return self.w_down(gate * up)  # element-wise multiply, then project down
+
 class MLP(nn.Module):
     def __init__(self, config):
         super().__init__()
