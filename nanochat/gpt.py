@@ -39,12 +39,18 @@ def norm(x):
 
 
 def apply_rotary_emb(x, cos, sin):
+    # x:   (B, T, H, D)  - queries or keys
+    # cos: (1, T, 1, D/2) - precomputed cosines, broadcasts over B and H
+    # sin: (1, T, 1, D/2) - precomputed sines, broadcasts over B and H
     assert x.ndim == 4  # multihead attention
-    d = x.shape[3] // 2
+    d = x.shape[3] // 2  # d = D/2 (half of head_dim)
+    # x1: (B, T, H, D/2), x2: (B, T, H, D/2)
     x1, x2 = x[..., :d], x[..., d:] # split up last dim into two halves
-    y1 = x1 * cos + x2 * sin # rotate pairs of dims
-    y2 = x1 * (-sin) + x2 * cos
-    return torch.cat([y1, y2], 3)
+    # 2D rotation: [cos  sin] [x1]   Each (x1, x2) pair is rotated by angle θ
+    #              [-sin cos] [x2]   where θ = position * frequency
+    y1 = x1 * cos + x2 * sin   # y1: (B, T, H, D/2)
+    y2 = x1 * (-sin) + x2 * cos  # y2: (B, T, H, D/2)
+    return torch.cat([y1, y2], 3)  # output: (B, T, H, D)
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, config, layer_idx):
@@ -303,6 +309,8 @@ class GPT(nn.Module):
         if targets is not None:
             # training: given the targets, compute and return the loss
             # TODO experiment with chunked cross-entropy?
+            # cross_entropy expects (N, C) logits and (N,) targets, so we flatten B and T dims:
+            # logits: (B, T, V) → (B*T, V), targets: (B, T) → (B*T,)
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1), ignore_index=-1, reduction=loss_reduction)
             return loss
         else:
