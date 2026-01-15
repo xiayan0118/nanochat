@@ -9,8 +9,32 @@ from torch import Tensor
 
 class DistAdamW(torch.optim.Optimizer):
     """
-    Distributed AdamW optimizer.
-    In the style of ZeRO-2, i.e. sharded optimizer states and gradient reduction
+    Distributed AdamW optimizer with sharded optimizer states.
+    
+    This is ZeRO-1 style (not true ZeRO-2): optimizer states (m, v) are sharded
+    across ranks, but gradients are fully materialized before being reduce-scattered.
+    True ZeRO-2 would reduce-scatter gradients during the backward pass, never
+    materializing the full gradient.
+    
+    Communication pattern:
+      1. reduce_scatter: average gradients, each rank gets its slice
+      2. local AdamW update on the owned slice only
+      3. all_gather: replicate updated parameters to all ranks
+    
+    Memory savings: optimizer state is 1/N per rank (vs full for standard AdamW)
+    Peak gradient memory: still full (not reduced like true ZeRO-2)
+
+    # For each parameter p with gradient g:
+    m = β1*m + (1-β1)*g           # 1st moment (momentum)
+    v = β2*v + (1-β2)*g²          # 2nd moment (variance)
+    m̂ = m / (1-β1^t)              # bias correction
+    v̂ = v / (1-β2^t)              # bias correction
+    p = p - lr * m̂ / (√v̂ + ε)     # update
+    p = p * (1 - lr*wd)           # weight decay (decoupled)
+
+    The bias corrections in Adam/AdamW are needed because the moving averages (exp_avg, exp_avg_sq) are initialized at zero.
+    Early in training, this causes them to be biased low (closer to zero than the true mean/variance).
+    The bias correction factors (1 - β1^t) and (1 - β2^t) rescales the averages so they are unbiased estimates of the true mean/variance.
     """
     def __init__(self, param_groups, lr: float = 1e-3, betas: tuple[float, float] = (0.9, 0.999), eps: float = 1e-8, weight_decay: float = 0.01):
         defaults = dict(lr=lr, betas=betas, eps=eps, weight_decay=weight_decay)
