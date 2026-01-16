@@ -77,7 +77,7 @@ class Muon(torch.optim.Optimizer):
                 if "momentum_buffer" not in state:
                     state["momentum_buffer"] = torch.zeros_like(g)
                 buf: Tensor = state["momentum_buffer"]
-                buf.lerp_(g, 1 - group["momentum"])
+                buf.lerp_(g, 1 - group["momentum"])  # EMA: buf = momentum * buf + (1 - momentum) * g
                 g = g.lerp_(buf, group["momentum"]) if group["nesterov"] else buf
                 g = zeropower_via_newtonschulz5(g, steps=group["ns_steps"])
                 p.add_(g, alpha=-group["lr"] * max(1, p.size(-2) / p.size(-1))**0.5)
