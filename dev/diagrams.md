@@ -173,3 +173,30 @@ flowchart TB
     style MLP fill:#e8f5e9
     style Output fill:#fff8e1    
 ```
+
+---
+
+# Data Loader
+
+```mermaid
+sequenceDiagram
+    participant Generator as document_batches()
+    participant Tokenizer as Tokenizer<br/>(parallel)
+    participant Buffer as Token Buffer<br/>(deque)
+    participant Batch as Batch Creator
+    participant GPU as GPU
+
+    loop Until B*T+1 tokens accumulated
+        Generator->>Generator: Read row group (this rank only)
+        Generator->>Tokenizer: Yield 128 documents
+        Tokenizer->>Tokenizer: Encode in parallel
+        Tokenizer->>Buffer: extend(tokens)
+    end
+
+    Note over Buffer: len(buffer) ≥ B*T+1
+
+    Buffer->>Batch: popleft(B*T+1) tokens
+    Batch->>Batch: [:-1] → inputs<br/>[1:] → targets
+    Batch->>GPU: pin_memory + non_blocking transfer
+    GPU->>GPU: Model forward/backward
+```
