@@ -272,14 +272,17 @@ for step in range(num_steps):
             advantages = advantages_all[b0:b1]
             # Calculate log probabilities. Note that the loss calculates NLL = -logp, so we negate
             with autocast_ctx:
+                # Calculate log probabilities (NLL = -logp, so negate)
                 logp = -model(inputs, targets, loss_reduction='none').view_as(inputs) # (B, T)
             # Calculate the PG objective. Note that ignore_index=-1 ensures that invalid tokens have loss 0.
+            # Policy gradient objective: sum of (logp * advantage) over valid tokens
             pg_obj = (logp * advantages.unsqueeze(-1)).sum()
             # normalize by the number of valid tokens, number of passes, and examples_per_rank
             num_valid = (targets >= 0).sum().clamp(min=1)
             pg_obj = pg_obj / (num_valid * num_passes * examples_per_rank)
             # Note, there is no need to add PPO ratio+clip because we are on policy
             # Finally, formulate the loss that we want to minimize (instead of objective we wish to maximize)
+            # We want to maximize pg_obj, so minimize -pg_obj
             loss = -pg_obj
             loss.backward()
             print0(f"Step {step}/{num_steps} | Example step {example_step} | Pass {pass_idx} | loss: {loss.item():.6f} | Average reward: {rewards.mean().item()}")
